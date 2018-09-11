@@ -34,7 +34,10 @@ except:
             "gross_margin":[0,None],
             "customer_retention_rate":[0,None],
             "customer_churn_rate":[0,None],
-            "projected_growth_rate":[0,None]
+            "projected_growth_rate":[0,None],
+            "annual_recurring_revenue":[0,None],
+            "monthly_recurring_revenue":[0,None],
+            "annual_contract_value":[0,None]
         }
     };
     write(ENV_FILE,ENVIRONMENT)
