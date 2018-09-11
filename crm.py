@@ -96,6 +96,7 @@ class Resource:
             "closed_won_event":0
         };
         self.new_accounts = 0;
+        self.recurring_monthly_revenue = 0;
 
 def personnel_search(description):
     resources = read(ENV_FILE)["resources"]
@@ -171,7 +172,7 @@ def background_evaluate_resources():
         quota_starts = resource.activity["historical"]["periods_ended"][-1]
         quota_ends = resource.activity["current"]["period_ends"]
         value_tally = 0; closed_deals = 0; all_deals=0; in_pipeline = 0; pipeline_value =0; closed_deal_dates = []; pipeline_deals_detail = [];
-        current_deals = 0; current_cost=0; new_accounts_this_quota=0;
+        current_deals = 0; current_cost=0; new_accounts_this_quota=0; value_per_month = 0;
         for account in resource.activity["current"]["accounts"]:
             for lead in resource.activity["current"]["accounts"][account]:
                 all_deals+=1
@@ -181,6 +182,10 @@ def background_evaluate_resources():
                         closed_deals+=1;
                         value_tally+=lead["value"];
                         closed_deal_dates.append(lead["event_detail"][-1]["timestamp"])
+                        try:
+                            value_per_month+=(lead["value"]/lead["term_months"]);
+                        except:
+                            pass
                     if lead["progress"] in [5,6,7]:
                         in_pipeline+=1;
                         pipeline_value+=lead["value"];
@@ -224,6 +229,8 @@ def background_evaluate_resources():
         resource.current_cost = current_cost;
         # new accounts this quota
         resource.new_accounts = new_accounts_this_quota;
+        # recurring monthly revenue
+        resource.recurring_monthly_revenue = value_per_month;
         ENVIRONMENT["resources"][index] = resource
     write(ENV_FILE,ENVIRONMENT)
     return "background evaluation completed successfully"
@@ -485,12 +492,21 @@ def KPI_group_account_insight(resources):
     "monthly_recurring_revenue":0,
     "annual_contract_value":0
     }
-    retained_deals = 0; lost_deals=0; new_deals=0;
+    retained_deals = 0; lost_deals=0; new_deals=0; sum_monthly_recurring=0;
     for resource in resources:
         retained_deals+=resource.activity["historical"]["closed_deals"];
         lost_deals+=resource.activity["historical"]["lost_deals"];
         new_deals+=resource.new_accounts;
-        report["deals_in_pipeline"]+=resource.deals_in_pipeline;
+        sum_monthly_recurring+=resource.recurring_monthly_revenue;
+    report["monthly_recurring_revenue"] = sum_monthly_recurring;
+    report["annual_recurring_revenue"] = sum_monthly_recurring*12;
+    report["annual_contract_value"] = sum_monthly_recurring*12;
+    if report["monthly_recurring_revenue"] > ENVIRONMENT["benchmarks"]["monthly_recurring_revenue"][0]:
+        ENVIRONMENT["benchmarks"]["monthly_recurring_revenue"] = [report["monthly_recurring_revenue"],map(lambda x:x.resource_id,resources)];
+    if report["annual_recurring_revenue"] > ENVIRONMENT["benchmarks"]["annual_recurring_revenue"][0]:
+        ENVIRONMENT["benchmarks"]["annual_recurring_revenue"] = [report["annual_recurring_revenue"],map(lambda x:x.resource_id,resources)];
+    if report["annual_contract_value"] > ENVIRONMENT["benchmarks"]["annual_contract_value"][0]:
+        ENVIRONMENT["benchmarks"]["annual_contract_value"] = [report["annual_contract_value"],map(lambda x:x.resource_id,resources)];
     sum_deals = retained_deals+lost_deals+new_deals;
     if sum_deals>0:
         report["customer_retention_rate"] = retained_deals/sum_deals;
